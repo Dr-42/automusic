@@ -17,8 +17,11 @@
 * along with automusic.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use std::{io::Write, process::Child, thread::sleep, time::Duration};
+mod blockconfig;
 
+use std::{collections::HashMap, io::Write, process::Child, thread::sleep, time::Duration};
+
+use blockconfig::BlockConfig;
 use serde::{Deserialize, Serialize};
 use sha256::digest;
 
@@ -36,24 +39,73 @@ pub struct BlockType {
     pub color: Color,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-enum BlockId {
-    Hobbies,
-    Chill,
-    Coding,
-    Default,
-}
-
 fn play_mpv(music: &str, is_playlist: bool) -> std::process::Child {
-    std::process::Command::new("mpv")
-        .arg(music)
-        .arg("-no-video")
-        .arg("--shuffle")
-        .spawn()
-        .expect("Failed to play music")
+    if is_playlist {
+        std::process::Command::new("mpv")
+            .arg(music)
+            .arg("-no-video")
+            .arg("--shuffle")
+            .spawn()
+            .expect("Failed to play music")
+    } else {
+        std::process::Command::new("mpv")
+            .arg(music)
+            .arg("-no-video")
+            .arg("--loop")
+            .spawn()
+            .expect("Failed to play music")
+    }
 }
 
 fn main() {
+    if std::env::args().any(|arg| arg == "--version") {
+        println!("{} - {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+        return;
+    }
+    if std::env::args().any(|arg| arg == "--help") {
+        println!("Automatically play music based on the current block type");
+        println!();
+        println!("USAGE:");
+        println!("    {} [FLAGS]", env!("CARGO_PKG_NAME"));
+        println!();
+        println!("FLAGS:");
+        println!("    --version    Prints version information");
+        println!("    --help       Prints help information");
+        return;
+    }
+
+    if std::env::args().any(|arg| arg == "add") {
+        let mut input = String::new();
+        print!("Enter the block type name: ");
+        std::io::stdout().flush().unwrap();
+        std::io::stdin().read_line(&mut input).unwrap();
+        let type_name = input.clone().trim().to_string();
+        print!("Enter the block name: (* for all) ");
+        std::io::stdout().flush().unwrap();
+        input.clear();
+        std::io::stdin().read_line(&mut input).unwrap();
+        let block_name = if input.trim() == "*" {
+            None
+        } else {
+            Some(input.trim().to_string())
+        };
+        print!("Enter the music URL: ");
+        std::io::stdout().flush().unwrap();
+        input.clear();
+        std::io::stdin().read_line(&mut input).unwrap();
+        let music_url = input.trim().to_string();
+        print!("Is it a playlist? (y/n) ");
+        std::io::stdout().flush().unwrap();
+        input.clear();
+        std::io::stdin().read_line(&mut input).unwrap();
+        let is_playlist = input.trim() == "y";
+
+        let block_config =
+            blockconfig::BlockConfig::new(type_name, block_name, music_url, is_playlist);
+        block_config.add_block();
+        return;
+    }
+
     let cache_path = directories::ProjectDirs::from("org", "dr42", "automusic")
         .unwrap()
         .cache_dir()
@@ -99,23 +151,19 @@ fn main() {
         .json::<Vec<BlockType>>()
         .unwrap();
 
-    let hobbies_block_id = block_types
-        .iter()
-        .find(|block_type| block_type.name == "Hobbies")
-        .unwrap()
-        .id;
-    let chill_block_id = block_types
-        .iter()
-        .find(|block_type| block_type.name == "Chill")
-        .unwrap()
-        .id;
-    let coding_block_id = block_types
-        .iter()
-        .find(|block_type| block_type.name == "Coding")
-        .unwrap()
-        .id;
+    let id_map: HashMap<u8, BlockConfig> =
+        HashMap::from_iter(BlockConfig::getall().into_iter().map(|block_config| {
+            (
+                block_types
+                    .iter()
+                    .find(|block_type| block_type.name == block_config.type_name)
+                    .unwrap()
+                    .id,
+                block_config,
+            )
+        }));
 
-    let mut active_block_id = BlockId::Default;
+    let mut active_block_id = 255;
     let mut active_process: Option<Child> = None;
 
     loop {
@@ -124,35 +172,11 @@ fn main() {
             .header("Authorization", format!("Bearer {}", password));
         let current_block_id = current_block_id.send().unwrap().json::<u8>().unwrap();
 
-        let block_id = if current_block_id == hobbies_block_id {
-            BlockId::Hobbies
-        } else if current_block_id == chill_block_id {
-            BlockId::Chill
-        } else if current_block_id == coding_block_id {
-            BlockId::Coding
-        } else {
-            BlockId::Default
-        };
-
-        if active_block_id != block_id {
-            active_block_id = block_id;
-
-            // Play music based on block id
-            let new_process = match active_block_id {
-                BlockId::Hobbies => Some(play_mpv(
-                    "https://music.youtube.com/playlist?list=PLeEm7S9XGtjijWUGbWKKkIDzEbc7X4PQx",
-                    true,
-                )),
-                BlockId::Chill => Some(play_mpv(
-                    "https://music.youtube.com/playlist?list=RDCLAK5uy_kb7EBi6y3GrtJri4_ZH56Ms786DFEimbM",
-                    true,
-                )),
-                BlockId::Coding => Some(play_mpv(
-                    "https://music.youtube.com/playlist?list=PL9LkJszkF_Z6bJ82689htd2wch-HVbzCO",
-                    true,
-                )),
-                BlockId::Default => None,
-            };
+        if active_block_id != current_block_id {
+            active_block_id = current_block_id;
+            let new_process = id_map
+                .get(&active_block_id)
+                .map(|block_config| play_mpv(&block_config.music_url, block_config.is_playlist));
             if let Some(mut process) = active_process {
                 process.kill().unwrap();
             }
