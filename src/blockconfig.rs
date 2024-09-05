@@ -72,6 +72,6 @@ impl BlockConfig {
             std::fs::write(&config_path, "[]").unwrap();
         }
 
-        std::fs::write(config_path, serde_json::to_string(&blocks).unwrap()).unwrap();
+        std::fs::write(config_path, serde_json::to_string_pretty(&blocks).unwrap()).unwrap();
     }
 }

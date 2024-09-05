@@ -151,32 +151,55 @@ fn main() {
         .json::<Vec<BlockType>>()
         .unwrap();
 
-    let id_map: HashMap<u8, BlockConfig> =
-        HashMap::from_iter(BlockConfig::getall().into_iter().map(|block_config| {
-            (
-                block_types
+    let blockconfigs = blockconfig::BlockConfig::getall();
+
+    let id_map: HashMap<u8, Vec<BlockConfig>> =
+        blockconfigs
+            .into_iter()
+            .fold(HashMap::new(), |mut map, block_config| {
+                let block_type = block_types
                     .iter()
                     .find(|block_type| block_type.name == block_config.type_name)
-                    .unwrap()
-                    .id,
-                block_config,
-            )
-        }));
+                    .unwrap();
+                map.entry(block_type.id).or_default().push(block_config);
+                map
+            });
 
     let mut active_block_id = 255;
+    let mut active_block_name = String::new();
     let mut active_process: Option<Child> = None;
 
     loop {
         let current_block_id = reqwest::blocking::Client::new()
             .get(&format!("http://{}/currentblocktype", server_ip))
             .header("Authorization", format!("Bearer {}", password));
+        let current_block_name = reqwest::blocking::Client::new()
+            .get(&format!("http://{}/currentblockname", server_ip))
+            .header("Authorization", format!("Bearer {}", password));
         let current_block_id = current_block_id.send().unwrap().json::<u8>().unwrap();
+        let current_block_name = current_block_name.send().unwrap().json::<String>().unwrap();
 
-        if active_block_id != current_block_id {
+        if active_block_id != current_block_id || active_block_name != current_block_name {
             active_block_id = current_block_id;
-            let new_process = id_map
-                .get(&active_block_id)
-                .map(|block_config| play_mpv(&block_config.music_url, block_config.is_playlist));
+            active_block_name = current_block_name;
+
+            let new_process = id_map.get(&active_block_id).and_then(|block_configs| {
+                block_configs
+                    .iter()
+                    .find(|block_config| {
+                        block_config
+                            .block_name
+                            .as_ref()
+                            .map_or(false, |block_name| block_name == &active_block_name)
+                    })
+                    .or_else(|| {
+                        block_configs
+                            .iter()
+                            .find(|block_config| block_config.block_name.is_none())
+                    })
+                    .map(|block_config| play_mpv(&block_config.music_url, block_config.is_playlist))
+            });
+
             if let Some(mut process) = active_process {
                 process.kill().unwrap();
             }
