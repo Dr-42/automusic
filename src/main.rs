@@ -44,11 +44,10 @@ enum BlockId {
     Default,
 }
 
-fn play_mpv(music: &str) -> std::process::Child {
+fn play_mpv(music: &str, is_playlist: bool) -> std::process::Child {
     std::process::Command::new("mpv")
         .arg(music)
-        .arg("--no-video")
-        .arg("--loop")
+        .arg("-no-video")
         .arg("--shuffle")
         .spawn()
         .expect("Failed to play music")
@@ -142,12 +141,15 @@ fn main() {
             let new_process = match active_block_id {
                 BlockId::Hobbies => Some(play_mpv(
                     "https://music.youtube.com/playlist?list=PLeEm7S9XGtjijWUGbWKKkIDzEbc7X4PQx",
+                    true,
                 )),
                 BlockId::Chill => Some(play_mpv(
-                    "https://www.youtube.com/watch?v=XDpoBc8t6gE&list=RDQMwbpzXXO29_k",
+                    "https://music.youtube.com/playlist?list=RDCLAK5uy_kb7EBi6y3GrtJri4_ZH56Ms786DFEimbM",
+                    true,
                 )),
                 BlockId::Coding => Some(play_mpv(
-                    "https://www.youtube.com/watch?v=kXYiU_JCYtU&list=RDEMww6ZEHgLhQ-8eu_x7Z-FJw",
+                    "https://music.youtube.com/playlist?list=PL9LkJszkF_Z6bJ82689htd2wch-HVbzCO",
+                    true,
                 )),
                 BlockId::Default => None,
             };
