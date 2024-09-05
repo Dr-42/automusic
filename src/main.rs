@@ -55,7 +55,17 @@ fn play_mpv(music: &str) -> std::process::Child {
 }
 
 fn main() {
-    let password = if let Ok(password) = std::fs::read_to_string("password.txt") {
+    let cache_path = directories::ProjectDirs::from("org", "dr42", "automusic")
+        .unwrap()
+        .cache_dir()
+        .to_owned();
+    if !cache_path.exists() {
+        std::fs::create_dir_all(&cache_path).unwrap();
+    }
+    let password_path = cache_path.join("password.txt");
+    let server_ip_path = cache_path.join("server_ip.txt");
+
+    let password = if let Ok(password) = std::fs::read_to_string(&password_path) {
         password
     } else {
         print!("Enter password: ");
@@ -63,11 +73,11 @@ fn main() {
         let mut password = String::new();
         std::io::stdin().read_line(&mut password).unwrap();
         let password = digest(password.trim());
-        std::fs::write("password.txt", &password).unwrap();
+        std::fs::write(&password_path, &password).unwrap();
         password
     };
 
-    let server_ip = if let Ok(server_ip) = std::fs::read_to_string("server_ip.txt") {
+    let server_ip = if let Ok(server_ip) = std::fs::read_to_string(&server_ip_path) {
         server_ip
     } else {
         print!("Enter server IP: ");
@@ -75,7 +85,7 @@ fn main() {
         let mut server_ip = String::new();
         std::io::stdin().read_line(&mut server_ip).unwrap();
         let server_ip = server_ip.trim();
-        std::fs::write("server_ip.txt", server_ip).unwrap();
+        std::fs::write(&server_ip_path, server_ip).unwrap();
         server_ip.to_string()
     };
 
