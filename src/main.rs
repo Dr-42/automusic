@@ -142,7 +142,7 @@ fn main() {
 
     // Use the password as auth header of Bearer token
     let block_types = reqwest::blocking::Client::new()
-        .get(&format!("http://{}/blocktypes", server_ip))
+        .get(format!("http://{}/blocktypes", server_ip))
         .header("Authorization", format!("Bearer {}", password));
 
     let block_types = block_types
@@ -171,13 +171,23 @@ fn main() {
 
     loop {
         let current_block_id = reqwest::blocking::Client::new()
-            .get(&format!("http://{}/currentblocktype", server_ip))
+            .get(format!("http://{}/currentblocktype", server_ip))
             .header("Authorization", format!("Bearer {}", password));
         let current_block_name = reqwest::blocking::Client::new()
-            .get(&format!("http://{}/currentblockname", server_ip))
+            .get(format!("http://{}/currentblockname", server_ip))
             .header("Authorization", format!("Bearer {}", password));
-        let current_block_id = current_block_id.send().unwrap().json::<u8>().unwrap();
-        let current_block_name = current_block_name.send().unwrap().json::<String>().unwrap();
+        let current_block_id = current_block_id.send().unwrap().json::<u8>();
+        if current_block_id.is_err() {
+            sleep(Duration::from_secs(5));
+            continue;
+        }
+        let current_block_name = current_block_name.send().unwrap().json::<String>();
+        if current_block_name.is_err() {
+            sleep(Duration::from_secs(5));
+            continue;
+        }
+        let current_block_id = current_block_id.unwrap();
+        let current_block_name = current_block_name.unwrap();
 
         if active_block_id != current_block_id || active_block_name != current_block_name {
             active_block_id = current_block_id;
