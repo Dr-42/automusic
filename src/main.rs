@@ -45,6 +45,7 @@ fn play_mpv(music: &str, is_playlist: bool) -> std::process::Child {
             .arg(music)
             .arg("-no-video")
             .arg("--shuffle")
+            .arg("--loop-playlist")
             .spawn()
             .expect("Failed to play music")
     } else {
