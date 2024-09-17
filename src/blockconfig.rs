@@ -17,14 +17,22 @@
 * along with automusic.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use std::fmt::Display;
+
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct BlockConfig {
     pub type_name: String,
     pub block_name: Option<String>,
     pub music_url: String,
     pub is_playlist: bool,
+}
+
+impl Display for BlockConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", serde_json::to_string(self).unwrap())
+    }
 }
 
 impl BlockConfig {

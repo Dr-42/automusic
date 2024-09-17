@@ -75,6 +75,8 @@ fn main() {
         return;
     }
 
+    let mut blockconfigs = blockconfig::BlockConfig::getall();
+
     if std::env::args().any(|arg| arg == "add") {
         let mut input = String::new();
         print!("Enter the block type name: ");
@@ -90,6 +92,24 @@ fn main() {
         } else {
             Some(input.trim().to_string())
         };
+
+        // Check if this config already exists
+        if blockconfigs.iter().any(|block_config| {
+            block_config.type_name == type_name && block_config.block_name == block_name
+        }) {
+            println!("Config already exists");
+            println!("Use 'edit' to edit the config");
+            println!(
+                "Config: {}",
+                blockconfigs
+                    .iter()
+                    .find(|block_config| {
+                        block_config.type_name == type_name && block_config.block_name == block_name
+                    })
+                    .unwrap()
+            );
+            return;
+        }
         print!("Enter the music URL: ");
         std::io::stdout().flush().unwrap();
         input.clear();
@@ -152,10 +172,9 @@ fn main() {
         .json::<Vec<BlockType>>()
         .unwrap();
 
-    let blockconfigs = blockconfig::BlockConfig::getall();
-
-    let id_map: HashMap<u8, Vec<BlockConfig>> =
+    let mut id_map: HashMap<u8, Vec<BlockConfig>> =
         blockconfigs
+            .clone()
             .into_iter()
             .fold(HashMap::new(), |mut map, block_config| {
                 let block_type = block_types
@@ -171,6 +190,22 @@ fn main() {
     let mut active_process: Option<Child> = None;
 
     loop {
+        // Check if block configs has been updated
+        if blockconfigs.clone() != blockconfig::BlockConfig::getall() {
+            blockconfigs = blockconfig::BlockConfig::getall();
+            id_map =
+                blockconfigs
+                    .clone()
+                    .into_iter()
+                    .fold(HashMap::new(), |mut map, block_config| {
+                        let block_type = block_types
+                            .iter()
+                            .find(|block_type| block_type.name == block_config.type_name)
+                            .unwrap();
+                        map.entry(block_type.id).or_default().push(block_config);
+                        map
+                    });
+        }
         let current_block_id = reqwest::blocking::Client::new()
             .get(format!("http://{}/currentblocktype", server_ip))
             .header("Authorization", format!("Bearer {}", password));
