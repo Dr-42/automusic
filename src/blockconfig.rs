@@ -17,7 +17,7 @@
 * along with automusic.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use std::fmt::Display;
+use std::{fmt::Display, time::UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
@@ -63,6 +63,45 @@ impl BlockConfig {
             std::fs::write(&config_path, "[]").unwrap();
         }
         serde_json::from_str(&std::fs::read_to_string(config_path).unwrap()).unwrap()
+    }
+
+    pub fn check_update(time: u64) -> bool {
+        let config_dir = directories::ProjectDirs::from("org", "dr42", "automusic")
+            .unwrap()
+            .config_dir()
+            .to_owned();
+        if !config_dir.exists() {
+            std::fs::create_dir_all(&config_dir).unwrap();
+        }
+        let config_path = config_dir.join("config.json");
+        time < std::fs::metadata(config_path)
+            .unwrap()
+            .modified()
+            .unwrap()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+    }
+
+    pub fn get_last_update() -> u64 {
+        let config_dir = directories::ProjectDirs::from("org", "dr42", "automusic")
+            .unwrap()
+            .config_dir()
+            .to_owned();
+        if !config_dir.exists() {
+            std::fs::create_dir_all(&config_dir).unwrap();
+        }
+        let config_path = config_dir.join("config.json");
+        if !config_path.exists() {
+            std::fs::write(&config_path, "[]").unwrap();
+        }
+        std::fs::metadata(config_path)
+            .unwrap()
+            .modified()
+            .unwrap()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
     }
 
     pub fn add_block(&self) {

@@ -75,7 +75,8 @@ fn main() {
         return;
     }
 
-    let mut blockconfigs = blockconfig::BlockConfig::getall();
+    let mut blockconfigs = BlockConfig::getall();
+    let mut last_update = BlockConfig::get_last_update();
 
     if std::env::args().any(|arg| arg == "add") {
         let mut input = String::new();
@@ -98,7 +99,6 @@ fn main() {
             block_config.type_name == type_name && block_config.block_name == block_name
         }) {
             println!("Config already exists");
-            println!("Use 'edit' to edit the config");
             println!(
                 "Config: {}",
                 blockconfigs
@@ -191,7 +191,8 @@ fn main() {
 
     loop {
         // Check if block configs has been updated
-        if blockconfigs.clone() != blockconfig::BlockConfig::getall() {
+        if BlockConfig::check_update(last_update) {
+            last_update = BlockConfig::get_last_update();
             blockconfigs = blockconfig::BlockConfig::getall();
             id_map =
                 blockconfigs
