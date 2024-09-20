@@ -162,15 +162,30 @@ fn main() {
     };
 
     // Use the password as auth header of Bearer token
-    let block_types = reqwest::blocking::Client::new()
-        .get(format!("http://{}/blocktypes", server_ip))
-        .header("Authorization", format!("Bearer {}", password));
 
-    let block_types = block_types
-        .send()
-        .unwrap()
-        .json::<Vec<BlockType>>()
-        .unwrap();
+    // let block_types = block_types
+    //     .send()
+    //     .unwrap()
+    //     .json::<Vec<BlockType>>()
+    //     .unwrap();
+
+    let block_types = loop {
+        let block_types = reqwest::blocking::Client::new()
+            .get(format!("http://{}/blocktypes", server_ip))
+            .header("Authorization", format!("Bearer {}", password));
+
+        let block_types = block_types.send();
+        if block_types.is_err() {
+            sleep(Duration::from_secs(5));
+            continue;
+        }
+        let block_types = block_types.unwrap().json::<Vec<BlockType>>();
+        if block_types.is_err() {
+            sleep(Duration::from_secs(5));
+            continue;
+        }
+        break block_types.unwrap();
+    };
 
     let mut id_map: HashMap<u8, Vec<BlockConfig>> =
         blockconfigs
