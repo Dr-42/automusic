@@ -213,17 +213,28 @@ fn main() {
         let current_block_name = reqwest::blocking::Client::new()
             .get(format!("http://{}/currentblockname", server_ip))
             .header("Authorization", format!("Bearer {}", password));
-        let current_block_id = current_block_id.send().unwrap().json::<u8>();
+        //let current_block_id = current_block_id.send().unwrap().json::<u8>();
+        let current_block_id = current_block_id.send();
         if current_block_id.is_err() {
             sleep(Duration::from_secs(5));
             continue;
         }
-        let current_block_name = current_block_name.send().unwrap().json::<String>();
-        if current_block_name.is_err() {
+        let current_block_id = current_block_id.unwrap().json::<u8>();
+        if current_block_id.is_err() {
             sleep(Duration::from_secs(5));
             continue;
         }
         let current_block_id = current_block_id.unwrap();
+        let current_block_name = current_block_name.send();
+        if current_block_name.is_err() {
+            sleep(Duration::from_secs(5));
+            continue;
+        }
+        let current_block_name = current_block_name.unwrap().json::<String>();
+        if current_block_name.is_err() {
+            sleep(Duration::from_secs(5));
+            continue;
+        }
         let current_block_name = current_block_name.unwrap();
 
         if active_block_id != current_block_id || active_block_name != current_block_name {
