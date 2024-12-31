@@ -39,6 +39,12 @@ pub struct BlockType {
     pub color: Color,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CurrentBlock {
+    pub block_type_id: u8,
+    pub current_block_name: String,
+}
+
 fn play_mpv(music: &str, is_playlist: bool) -> std::process::Child {
     if is_playlist {
         std::process::Command::new("mpv")
@@ -161,14 +167,6 @@ fn main() {
         server_ip.to_string()
     };
 
-    // Use the password as auth header of Bearer token
-
-    // let block_types = block_types
-    //     .send()
-    //     .unwrap()
-    //     .json::<Vec<BlockType>>()
-    //     .unwrap();
-
     let block_types = loop {
         let block_types = reqwest::blocking::Client::new()
             .get(format!("http://{}/blocktypes", server_ip))
@@ -222,35 +220,28 @@ fn main() {
                         map
                     });
         }
-        let current_block_id = reqwest::blocking::Client::new()
-            .get(format!("http://{}/currentblocktype", server_ip))
+        let current_block = reqwest::blocking::Client::new()
+            .get(format!("http://{}/getcurrentdata", server_ip))
             .header("Authorization", format!("Bearer {}", password));
-        let current_block_name = reqwest::blocking::Client::new()
-            .get(format!("http://{}/currentblockname", server_ip))
-            .header("Authorization", format!("Bearer {}", password));
-        //let current_block_id = current_block_id.send().unwrap().json::<u8>();
-        let current_block_id = current_block_id.send();
-        if current_block_id.is_err() {
+        let current_block = current_block.send();
+        if current_block.is_err() {
             sleep(Duration::from_secs(5));
             continue;
         }
-        let current_block_id = current_block_id.unwrap().json::<u8>();
-        if current_block_id.is_err() {
+        let current_block = current_block.unwrap();
+        if !current_block.status().is_success() {
             sleep(Duration::from_secs(5));
             continue;
         }
-        let current_block_id = current_block_id.unwrap();
-        let current_block_name = current_block_name.send();
-        if current_block_name.is_err() {
+
+        let current_block = current_block.json::<CurrentBlock>();
+        if current_block.is_err() {
             sleep(Duration::from_secs(5));
             continue;
         }
-        let current_block_name = current_block_name.unwrap().json::<String>();
-        if current_block_name.is_err() {
-            sleep(Duration::from_secs(5));
-            continue;
-        }
-        let current_block_name = current_block_name.unwrap();
+        let current_block = current_block.unwrap();
+        let current_block_id = current_block.block_type_id;
+        let current_block_name = current_block.current_block_name;
 
         if active_block_id != current_block_id || active_block_name != current_block_name {
             active_block_id = current_block_id;
