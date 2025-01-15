@@ -169,7 +169,7 @@ fn main() {
 
     let block_types = loop {
         let block_types = reqwest::blocking::Client::new()
-            .get(format!("http://{}/blocktypes", server_ip))
+            .get(format!("http://{}/blocktype/get", server_ip))
             .header("Authorization", format!("Bearer {}", password));
 
         let block_types = block_types.send();
@@ -221,7 +221,7 @@ fn main() {
                     });
         }
         let current_block = reqwest::blocking::Client::new()
-            .get(format!("http://{}/getcurrentdata", server_ip))
+            .get(format!("http://{}/currentblock/get", server_ip))
             .header("Authorization", format!("Bearer {}", password));
         let current_block = current_block.send();
         if current_block.is_err() {
