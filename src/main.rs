@@ -18,10 +18,13 @@
 */
 
 mod blockconfig;
+mod netutils;
 
 use std::{collections::HashMap, io::Write, process::Child, thread::sleep, time::Duration};
 
 use blockconfig::BlockConfig;
+use netutils::{LoginRequest, LoginResponse, Meta};
+use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use sha256::digest;
 
@@ -133,51 +136,51 @@ fn main() {
         return;
     }
 
-    let cache_path = directories::ProjectDirs::from("org", "dr42", "automusic")
+    let data_path = directories::ProjectDirs::from("org", "dr42", "automusic")
         .unwrap()
-        .cache_dir()
+        .data_dir()
         .to_owned();
-    if !cache_path.exists() {
-        std::fs::create_dir_all(&cache_path).unwrap();
+    if !data_path.exists() {
+        std::fs::create_dir_all(&data_path).unwrap();
     }
-    let password_path = cache_path.join("password.txt");
-    let server_ip_path = cache_path.join("server_ip.txt");
+    let meta_path = data_path.join("meta.json");
 
-    let password = if let Ok(password) = std::fs::read_to_string(&password_path) {
-        password
+    let _ = if let Ok(meta) = std::fs::read_to_string(&meta_path) {
+        serde_json::from_str(&meta).unwrap()
     } else {
-        print!("Enter password: ");
-        std::io::stdout().flush().unwrap();
-        let mut password = String::new();
-        std::io::stdin().read_line(&mut password).unwrap();
-        let password = digest(password.trim());
-        std::fs::write(&password_path, &password).unwrap();
-        password
-    };
+        println!("Please enter the server_ip");
+        let server_ip = std::io::stdin().lines().next().unwrap().unwrap();
+        println!("Please enter the password");
+        let password = rpassword::read_password().unwrap();
+        let hashed_pass = digest(&password);
+        let login_req = LoginRequest { key: hashed_pass };
+        let client = Client::new();
+        let response = client
+            .post(format!("http://{}/auth/login", server_ip))
+            .json(&login_req)
+            .send()
+            .unwrap()
+            .json::<LoginResponse>()
+            .unwrap();
 
-    let server_ip = if let Ok(server_ip) = std::fs::read_to_string(&server_ip_path) {
-        server_ip
-    } else {
-        print!("Enter server IP: ");
-        std::io::stdout().flush().unwrap();
-        let mut server_ip = String::new();
-        std::io::stdin().read_line(&mut server_ip).unwrap();
-        let server_ip = server_ip.trim();
-        std::fs::write(&server_ip_path, server_ip).unwrap();
-        server_ip.to_string()
+        let meta = Meta {
+            server_ip: server_ip.to_string(),
+            access_token: response.access_token,
+            refresh_token: response.refresh_token,
+        };
+
+        std::fs::write(meta_path, serde_json::to_string(&meta).unwrap()).unwrap();
+
+        meta
     };
 
     let block_types = loop {
-        let block_types = reqwest::blocking::Client::new()
-            .get(format!("http://{}/blocktype/get", server_ip))
-            .header("Authorization", format!("Bearer {}", password));
+        // let block_types = reqwest::blocking::Client::new()
+        //     .get(format!("http://{}/blocktype/get", meta.server_ip))
+        //     .header("Authorization", format!("Bearer {}", password));
+        let block_types =
+            netutils::make_get_request::<Vec<BlockType>>("/blocktype/get", &data_path, None);
 
-        let block_types = block_types.send();
-        if block_types.is_err() {
-            sleep(Duration::from_secs(5));
-            continue;
-        }
-        let block_types = block_types.unwrap().json::<Vec<BlockType>>();
         if block_types.is_err() {
             sleep(Duration::from_secs(5));
             continue;
@@ -220,21 +223,9 @@ fn main() {
                         map
                     });
         }
-        let current_block = reqwest::blocking::Client::new()
-            .get(format!("http://{}/currentblock/get", server_ip))
-            .header("Authorization", format!("Bearer {}", password));
-        let current_block = current_block.send();
-        if current_block.is_err() {
-            sleep(Duration::from_secs(5));
-            continue;
-        }
-        let current_block = current_block.unwrap();
-        if !current_block.status().is_success() {
-            sleep(Duration::from_secs(5));
-            continue;
-        }
 
-        let current_block = current_block.json::<CurrentBlock>();
+        let current_block =
+            netutils::make_get_request::<CurrentBlock>("/currentblock/get", &data_path, None);
         if current_block.is_err() {
             sleep(Duration::from_secs(5));
             continue;
@@ -251,10 +242,7 @@ fn main() {
                 block_configs
                     .iter()
                     .find(|block_config| {
-                        block_config
-                            .block_name
-                            .as_ref()
-                            .map_or(false, |block_name| block_name == &active_block_name)
+                        block_config.block_name.as_ref() == Some(&active_block_name)
                     })
                     .or_else(|| {
                         block_configs
