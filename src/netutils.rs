@@ -81,7 +81,7 @@ where
             std::fs::write(meta_path, meta_json)?;
 
             let response = client
-                .get(format!("http://{}/{}", meta.server_ip, url_path))
+                .get(format!("http://{}{}", meta.server_ip, url_path))
                 .header(AUTHORIZATION, format!("Bearer {}", meta.access_token))
                 .send()?
                 .json::<T>()?;
