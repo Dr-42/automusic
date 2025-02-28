@@ -195,8 +195,13 @@ fn main() {
             .fold(HashMap::new(), |mut map, block_config| {
                 let block_type = block_types
                     .iter()
-                    .find(|block_type| block_type.name == block_config.type_name)
-                    .unwrap();
+                    .find(|block_type| block_type.name.trim() == block_config.type_name.trim());
+
+                if block_type.is_none() {
+                    eprintln!("Block type {} not found", block_config.type_name);
+                    return map;
+                }
+                let block_type = block_type.unwrap();
                 map.entry(block_type.id).or_default().push(block_config);
                 map
             });
